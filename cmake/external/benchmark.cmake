@@ -1,0 +1,75 @@
+if(AGRPC_BUILD_TESTS)
+  enable_testing()
+endif()
+
+include(GNUInstallDirs)
+include(ExternalProject)
+
+set(BENCHMARK_PREFIX_DIR ${THIRD_PARTY_PATH}/benchmark)
+set(BENCHMARK_SOURCE_DIR ${THIRD_PARTY_PATH}/benchmark/src/extern_benchmark)
+set(BENCHMARK_INSTALL_DIR ${THIRD_PARTY_PATH}/install/benchmark)
+set(BENCHMARK_INCLUDE_DIR
+    "${BENCHMARK_INSTALL_DIR}/include"
+    CACHE PATH "benchmark include directory." FORCE)
+set(BENCHMARK_REPOSITORY ${GIT_URL}/google/benchmark.git)
+set(BENCHMARK_TAG v1.5.6)
+
+include_directories(${BENCHMARK_INCLUDE_DIR})
+
+if(WIN32)
+  set(BENCHMARK_LIBRARIES
+      "${BENCHMARK_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/benchmark.lib"
+      CACHE FILEPATH "benchmark libraries." FORCE)
+  set(BENCHMARK_MAIN_LIBRARIES
+      "${BENCHMARK_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/benchmark_main.lib"
+      CACHE FILEPATH "benchmark main libraries." FORCE)
+else()
+  set(BENCHMARK_LIBRARIES
+      "${BENCHMARK_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libbenchmark.a"
+      CACHE FILEPATH "benchmark libraries." FORCE)
+  set(BENCHMARK_MAIN_LIBRARIES
+      "${BENCHMARK_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/libbenchmark_main.a"
+      CACHE FILEPATH "benchmark main libraries." FORCE)
+endif()
+
+cache_third_party(
+  extern_benchmark
+  REPOSITORY ${BENCHMARK_REPOSITORY}
+  TAG ${BENCHMARK_TAG}
+  DIR BENCHMARK_SOURCE_DIR)
+
+ExternalProject_Add(
+  extern_benchmark
+  ${EXTERNAL_PROJECT_LOG_ARGS} ${SHALLOW_CLONE} ${BENCHMARK_DOWNLOAD_CMD}
+  DEPENDS ${BENCHMARK_DEPENDS}
+  PREFIX ${BENCHMARK_PREFIX_DIR}
+  SOURCE_DIR ${BENCHMARK_SOURCE_DIR}
+  UPDATE_COMMAND ""
+  CMAKE_ARGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+             -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+             -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
+             -DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}
+             -DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}
+             -DCMAKE_C_FLAGS=${CMAKE_C_FLAGS}
+             -DCMAKE_C_FLAGS_DEBUG=${CMAKE_C_FLAGS_DEBUG}
+             -DCMAKE_C_FLAGS_RELEASE=${CMAKE_C_FLAGS_RELEASE}
+             -DCMAKE_INSTALL_PREFIX=${BENCHMARK_INSTALL_DIR}
+             -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+             -DBENCHMARK_ENABLE_TESTING=OFF
+             -DCMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
+             ${EXTERNAL_OPTIONAL_ARGS}
+  CMAKE_CACHE_ARGS
+    -DCMAKE_INSTALL_PREFIX:PATH=${BENCHMARK_INSTALL_DIR}
+    -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+    -DCMAKE_BUILD_TYPE:STRING=${THIRD_PARTY_BUILD_TYPE}
+  BUILD_BYPRODUCTS ${BENCHMARK_LIBRARIES}
+  BUILD_BYPRODUCTS ${BENCHMARK_MAIN_LIBRARIES})
+
+add_library(benchmark STATIC IMPORTED GLOBAL)
+set_property(TARGET benchmark PROPERTY IMPORTED_LOCATION ${BENCHMARK_LIBRARIES})
+add_dependencies(benchmark extern_benchmark)
+
+add_library(benchmark_main STATIC IMPORTED GLOBAL)
+set_property(TARGET benchmark_main PROPERTY IMPORTED_LOCATION
+                                            ${BENCHMARK_MAIN_LIBRARIES})
+add_dependencies(benchmark_main extern_benchmark)

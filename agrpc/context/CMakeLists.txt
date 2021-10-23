@@ -1,0 +1,11 @@
+agrpc_cc_library(
+  NAME
+    grpc_context
+  HDRS
+    "grpc_context.h"
+  SRCS
+    "grpc_context.cc"
+  DEPS
+    unifex
+  PUBLIC
+)

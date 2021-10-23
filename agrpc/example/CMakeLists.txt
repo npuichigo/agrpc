@@ -1,0 +1,9 @@
+agrpc_cc_binary(
+  NAME
+    server
+  SRCS
+    "server.cc"
+  DEPS
+    agrpc::runtime
+    agrpc::proto::hello_world
+)
