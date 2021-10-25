@@ -9,6 +9,7 @@ include(CMakeParseArguments)
 # SRCS: List of source files for the library
 # PROTOC_ARGS: List of protobuf arguments.
 # PUBLIC: Add this so that this library will be exported under agrpc::
+# WITH_GRPC: Whether to generate grpc files.
 # Also in IDE, target will appear in AGRPC folder while non PUBLIC will be in AGRPC/internal.
 # TESTONLY: When added, this target will only be built if user passes -DAGRPC_BUILD_TESTS=ON to CMake.
 #
@@ -31,7 +32,7 @@ include(CMakeParseArguments)
 #   DEPS
 #     agrpc::schemas::some_def )
 function(agrpc_cc_proto_library)
-  cmake_parse_arguments(_RULE "PUBLIC;TESTONLY" "NAME" "SRCS;PROTOC_ARGS"
+  cmake_parse_arguments(_RULE "PUBLIC;WITH_GRPC;TESTONLY" "NAME" "SRCS;PROTOC_ARGS"
                         ${ARGN})
 
   if(_RULE_TESTONLY AND NOT AGRPC_BUILD_TESTS)
@@ -44,6 +45,23 @@ function(agrpc_cc_proto_library)
 
   protobuf_generate(PROTOS ${_RULE_SRCS} LANGUAGE cpp OUT_VAR _OUTS)
 
+  if(_RULE_WITH_GRPC)
+    protobuf_generate(PROTOS ${_RULE_SRCS} LANGUAGE cpp OUT_VAR _OUTS)
+    protobuf_generate(
+      PROTOS
+      ${_RULE_SRCS}
+      LANGUAGE
+      grpc
+      GENERATE_EXTENSIONS
+      .grpc.pb.h
+      .grpc.pb.cc
+      PLUGIN
+      "protoc-gen-grpc=${GRPC_CPP_PLUGIN_PROGRAM}"
+      OUT_VAR
+      _GRPC_OUTS)
+    list(APPEND _OUTS ${_GRPC_OUTS})
+  endif()
+
   add_library(${_NAME} STATIC "")
   set_source_files_properties(${_OUTS} PROPERTIES GENERATED TRUE)
   target_sources(${_NAME} PRIVATE ${_OUTS})
@@ -53,6 +71,9 @@ function(agrpc_cc_proto_library)
                            ${CMAKE_CURRENT_BINARY_DIR})
   target_link_options(${_NAME} PRIVATE ${AGRPC_DEFAULT_LINKOPTS})
   target_link_libraries(${_NAME} PUBLIC protobuf::libprotobuf)
+  if(_RULE_WITH_GRPC)
+    target_link_libraries(${_NAME} PUBLIC gRPC::grpc++)
+  endif()
 
   # Add all AGRPC targets to a folder in the IDE for organization.
   if(_RULE_PUBLIC)
