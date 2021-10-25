@@ -8,14 +8,27 @@ project(
   VERSION 0.1)
 
 set(CMAKE_CXX_STANDARD 20)
+
+#-------------------------------------------------------------------------------
+# AGRPC common settings
+#-------------------------------------------------------------------------------
+
 set(AGRPC_IDE_FOLDER AGRPC)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
 set(DEFAULT_CMAKE_BUILD_TYPE "Release")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type selected, default to ${DEFAULT_CMAKE_BUILD_TYPE}")
   set(CMAKE_BUILD_TYPE "${DEFAULT_CMAKE_BUILD_TYPE}" CACHE STRING "Build type (default ${DEFAULT_CMAKE_BUILD_TYPE})" FORCE)
 endif()
+
+#-------------------------------------------------------------------------------
+# Project component configuration
+#-------------------------------------------------------------------------------
+
+option(AGRPC_BUILD_TESTS "Compile agrpc with unit testing" ON)
+option(AGRPC_ENABLE_THREADING "Builds AGRPC with thread library support." ON)
 
 #-------------------------------------------------------------------------------
 # AGRPC utility definitions
@@ -31,8 +44,6 @@ include(agrpc_cc_test)
 include(agrpc_cc_proto_library)
 include(agrpc_add_all_subdirs)
 include(third_party)
-
-set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
 # Third-party directories that we include using the simpler add_subdirectory
 # method

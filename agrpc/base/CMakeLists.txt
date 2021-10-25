@@ -74,5 +74,4 @@ agrpc_cc_test(
   DEPS
     ::logging
     benchmark::benchmark
-    benchmark::benchmark_main
 )

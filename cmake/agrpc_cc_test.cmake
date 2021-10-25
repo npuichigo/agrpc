@@ -80,8 +80,6 @@ function(agrpc_cc_test)
 
   list(TRANSFORM _RULE_DEPS REPLACE "^::" "${_PACKAGE_NS}::")
 
-  list(APPEND _RULE_DEPS "gmock")
-
   target_link_libraries(${_NAME} PUBLIC ${_RULE_DEPS})
   agrpc_add_data_dependencies(NAME ${_NAME} DATA ${_RULE_DATA})
 
