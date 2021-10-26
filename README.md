@@ -1,6 +1,6 @@
 # agrpc
 
-Build an elegant GRPC Async interface with C++20 coroutine and libunifex (target for C++23 executor).
+Build an elegant GRPC async interface with C++20 coroutine and libunifex (target for C++23 executor).
 
 ## Get started
 ```bash
@@ -17,7 +17,7 @@ while (true) {
   grpc::ServerAsyncResponseWriter<helloworld::HelloReply> writer{&server_context};
   auto [request, request_ok] = co_await agrpc::GrpcContext::RequestSender(
     &helloworld::Greeter::AsyncService::RequestSayHello, grpc_context,
-    service, server_context, request, writer);
+    service, server_context, writer);
 
   if (!request_ok)
     co_return;
