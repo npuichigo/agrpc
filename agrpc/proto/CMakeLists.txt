@@ -4,4 +4,5 @@ agrpc_cc_proto_library(
   SRCS
     "helloworld.proto"
   PUBLIC
+  WITH_GRPC
 )

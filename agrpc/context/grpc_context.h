@@ -15,38 +15,223 @@
 #ifndef AGRPC_CONTEXT_GRPC_CONTEXT_H_
 #define AGRPC_CONTEXT_GRPC_CONTEXT_H_
 
+#include <atomic>
+#include <memory>
+
+#include <grpcpp/alarm.h>
+#include <grpcpp/completion_queue.h>
+
 #include <unifex/detail/atomic_intrusive_queue.hpp>
 #include <unifex/detail/intrusive_queue.hpp>
+#include <unifex/receiver_concepts.hpp>
+#include <unifex/type_traits.hpp>
+
+#include "agrpc/base/logging.h"
+#include "agrpc/context/rpcs.h"
 
 namespace agrpc {
 
+namespace detail {
+
+struct GrpcCompletionQueueEvent {
+  void* tag{nullptr};
+  bool ok{false};
+};
+
+}  // namespace detail
+
 class GrpcContext {
  public:
-  class scheduler;
+  template <typename RPC, typename Service, typename Request,
+            typename Responder>
+  class RequestSender;
 
-  GrpcContext();
+  GrpcContext(std::unique_ptr<grpc::ServerCompletionQueue> completion_queue);
 
   ~GrpcContext();
 
   template <typename StopToken>
-  void run(StopToken stopToken);
-
-  scheduler get_scheduler() noexcept;
+  void Run(StopToken stopToken);
 
  private:
-  struct operation_base {
-    operation_base() noexcept {}
-    operation_base* next_;
-    void (*execute_)(operation_base*) noexcept;
+  struct OperationBase {
+    OperationBase() noexcept {}
+    OperationBase* next_;
+    void (*execute_)(OperationBase*) noexcept;
   };
 
-  using LocalWorkQueue =
-      unifex::intrusive_queue<operation_base, &operation_base::next_>;
-  using RemoteWorkQueue =
-      unifex::atomic_intrusive_queue<operation_base, &operation_base::next_>;
+  struct StopOperation : OperationBase {
+    StopOperation() noexcept {
+      this->execute_ = [](OperationBase* op) noexcept {
+        static_cast<StopOperation*>(op)->should_stop_ = true;
+      };
+    }
+    bool should_stop_ = false;
+  };
 
-  LocalWorkQueue local_queue_;
-  RemoteWorkQueue remote_queue_;
+  using OperationQueue =
+      unifex::intrusive_queue<OperationBase, &OperationBase::next_>;
+  using AtomicOperationQueue =
+      unifex::atomic_intrusive_queue<OperationBase, &OperationBase::next_>;
+
+  bool IsRunningOnThisThread() const noexcept;
+  void RunImpl(const bool& should_stop);
+
+  void ScheduleImpl(OperationBase* op);
+  void ScheduleLocal(OperationBase* op) noexcept;
+  void ScheduleLocal(OperationQueue ops) noexcept;
+  void ScheduleRemote(OperationBase* op) noexcept;
+
+  // Execute all ready-to-run items on the local queue.
+  // Will not run other items that were enqueued during the execution of the
+  // items that were already enqueued.
+  // This bounds the amount of work to a finite amount.
+  void ExecutePendingLocal() noexcept;
+
+  // Check if any completion queue items are available and if so add them
+  // to the local queue.
+  //
+  // Returns true if successful.
+  //
+  // Returns false if the completion queue is fully drained and shutdown.
+  bool AcquireCompletionQueueItems() noexcept;
+
+  // Collect the contents of the remote queue and pass them to ScheduleLocal
+  //
+  // Returns true if successful.
+  //
+  // Returns false if some other thread concurrently enqueued work to the remote
+  // queue.
+  bool TryScheduleRemoteQueuedItems() noexcept;
+
+  // Wakeup the processing thread to acquire remotely-queued items.
+  //
+  // This should only be called after trying to enqueue() work
+  // to the remote_queue_ and being told that the processing thread
+  // is inactive.
+  void SignalRemoteQueue();
+
+  grpc::Alarm work_alarm_;
+  detail::GrpcCompletionQueueEvent event_;
+  std::unique_ptr<grpc::ServerCompletionQueue> completion_queue_;
+
+  bool remote_queue_read_submitted_{false};
+
+  OperationQueue local_queue_;
+  AtomicOperationQueue remote_queue_{false};
+};
+
+template <typename StopToken>
+void GrpcContext::Run(StopToken stop_token) {
+  StopOperation stop_op;
+  auto on_stop_requested = [&] { this->ScheduleImpl(&stop_op); };
+  typename StopToken::template callback_type<decltype(on_stop_requested)>
+      stop_callback{std::move(stop_token), std::move(on_stop_requested)};
+  RunImpl(stop_op.should_stop_);
+}
+
+template <typename RPC, typename Service, typename Request, typename Responder>
+class GrpcContext::RequestSender {
+  template <typename Receiver>
+  class Operation : private OperationBase {
+    friend GrpcContext;
+
+   public:
+    template <typename Receiver2>
+    explicit Operation(const RequestSender& sender, Receiver2&& r)
+        : rpc_(sender.rpc_),
+          context_(sender.context_),
+          service_(sender.service_),
+          server_context_(sender.server_context_),
+          request_(sender.request_),
+          responder_(sender.responder_),
+          receiver_((Receiver2 &&) r) {}
+
+    void start() noexcept {
+      if (!context_.IsRunningOnThisThread()) {
+        static_cast<OperationBase*>(this)->execute_ =
+            &Operation::OnScheduleComplete;
+        context_.ScheduleRemote(static_cast<OperationBase*>(this));
+      } else {
+        StartRPC();
+      }
+    }
+
+   private:
+    static void OnScheduleComplete(OperationBase* op) noexcept {
+      static_cast<Operation*>(op)->StartRPC();
+    }
+
+    void StartRPC() {
+      AGRPC_CHECK(context_.IsRunningOnThisThread());
+      static_cast<OperationBase*>(this)->execute_ =
+          &Operation::OnRequestComplete;
+      (service_.*rpc_)(&server_context_, &request_, &responder_,
+                       context_.completion_queue_.get(),
+                       context_.completion_queue_.get(), this);
+    }
+
+    static void OnRequestComplete(OperationBase* op) noexcept {
+      auto& self = *static_cast<Operation*>(op);
+      auto result = self.context_.event_.ok;
+      if constexpr (noexcept(
+                        unifex::set_value(std::move(self.receiver_), result))) {
+        unifex::set_value(std::move(self.receiver_), result);
+      } else {
+        UNIFEX_TRY { unifex::set_value(std::move(self.receiver_), result); }
+        UNIFEX_CATCH(...) {
+          unifex::set_error(std::move(self.receiver_),
+                            std::current_exception());
+        }
+      }
+    }
+
+    detail::ServerMultiArgRequest<RPC, Request, Responder> rpc_;
+    GrpcContext& context_;
+    Service& service_;
+    grpc::ServerContext& server_context_;
+    Request& request_;
+    Responder& responder_;
+    Receiver receiver_;
+  };
+
+ public:
+  // Produces number of bytes read.
+  template <template <typename...> class Variant,
+            template <typename...> class Tuple>
+  using value_types = Variant<Tuple<bool>>;
+
+  // Note: Only case it might complete with exception_ptr is if the
+  // receiver's set_value() exits with an exception.
+  template <template <typename...> class Variant>
+  using error_types = Variant<std::error_code, std::exception_ptr>;
+
+  static constexpr bool sends_done = true;
+
+  explicit RequestSender(
+      detail::ServerMultiArgRequest<RPC, Request, Responder> rpc,
+      GrpcContext& context, Service& service,
+      grpc::ServerContext& server_context, Request& request,
+      Responder& responder) noexcept
+      : rpc_(rpc),
+        context_(context),
+        service_(service),
+        server_context_(server_context),
+        request_(request),
+        responder_(responder) {}
+
+  template <typename Receiver>
+  Operation<unifex::remove_cvref_t<Receiver>> connect(Receiver&& r) && {
+    return Operation<unifex::remove_cvref_t<Receiver>>{*this, (Receiver &&) r};
+  }
+
+ private:
+  detail::ServerMultiArgRequest<RPC, Request, Responder> rpc_;
+  GrpcContext& context_;
+  Service& service_;
+  grpc::ServerContext& server_context_;
+  Request& request_;
+  Responder& responder_;
 };
 
 }  // namespace agrpc

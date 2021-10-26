@@ -26,8 +26,8 @@ agrpc_cc_test(
   SRCS
     "chrono_test.cc"
   DEPS
-    gtest
-    gtest_main
+    GTest::gtest
+    GTest::gtest_main
     ::chrono
 )
 
@@ -50,8 +50,8 @@ agrpc_cc_library(
     ::internal::macros
     ::chrono
     ::likely
-    fmt
-    glog
+    fmt::fmt
+    glog::glog
   PUBLIC
 )
 
@@ -62,8 +62,8 @@ agrpc_cc_test(
     "logging_test.cc"
   DEPS
     ::logging
-    gtest
-    gtest_main
+    GTest::gtest
+    GTest::gtest_main
 )
 
 agrpc_cc_test(
@@ -73,6 +73,5 @@ agrpc_cc_test(
     "logging_benchmark.cc"
   DEPS
     ::logging
-    benchmark
-    benchmark_main
+    benchmark::benchmark
 )

@@ -1,11 +1,21 @@
 agrpc_cc_library(
   NAME
+    rpcs
+  HDRS
+    "rpcs.h"
+  PUBLIC
+)
+
+agrpc_cc_library(
+  NAME
     grpc_context
   HDRS
     "grpc_context.h"
   SRCS
     "grpc_context.cc"
   DEPS
+    agrpc::base::logging
+    gRPC::grpc++
     unifex
   PUBLIC
 )
