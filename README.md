@@ -9,6 +9,21 @@ conan install ..
 cmake --build .
 ```
 
+## Work in progress
+One glance:
+```c++
+while (true) {
+  grpc::ServerContext server_context;
+  grpc::ServerAsyncResponseWriter<helloworld::HelloReply> writer{&server_context};
+  auto [request, request_ok] = co_await agrpc::GrpcContext::RequestSender(
+    &helloworld::Greeter::AsyncService::RequestSayHello, grpc_context,
+    service, server_context, request, writer);
+
+  if (!request_ok)
+    co_return;
+  }
+```
+
 ## Goal
 Maybe somethiing like C# interface.
 ```c#
@@ -27,6 +42,3 @@ public override async Task RouteChat(Grpc.Core.IAsyncStreamReader<RouteNote> req
     }
 }
 ```
-
-## Work in progress
-...
