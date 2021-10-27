@@ -155,16 +155,16 @@ class GrpcContext::AsyncRPCSender {
             &Operation::OnScheduleComplete;
         context_.ScheduleRemote(static_cast<OperationBase*>(this));
       } else {
-        StartRPC();
+        StartAsyncRPC();
       }
     }
 
    private:
     static void OnScheduleComplete(OperationBase* op) noexcept {
-      static_cast<Operation*>(op)->StartRPC();
+      static_cast<Operation*>(op)->StartAsyncRPC();
     }
 
-    void StartRPC() {
+    void StartAsyncRPC() {
       AGRPC_CHECK(context_.IsRunningOnThisThread());
       static_cast<OperationBase*>(this)->execute_ =
           &Operation::OnRequestComplete;
