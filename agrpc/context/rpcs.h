@@ -17,8 +17,11 @@
 
 #include <grpcpp/completion_queue.h>
 #include <grpcpp/server_context.h>
+#include <unifex/type_traits.hpp>
 
 namespace agrpc {
+
+using namespace unifex;
 
 namespace detail {
 
@@ -28,6 +31,29 @@ using ServerMultiArgRequest = void (RPC::*)(grpc::ServerContext*, Request*,
                                             grpc::ServerCompletionQueue*,
                                             void*);
 }  // namespace detail
+
+inline const struct AsyncRequestCPO {
+  template <typename Executor, typename RPC, typename Service, typename Request,
+      typename Responder>
+  auto operator()(Executor&& executor,
+                  detail::ServerMultiArgRequest<RPC, Request, Responder> rpc,
+                  Service& service, grpc::ServerContext& server_context,
+                  Request& request, Responder& responder) const
+      noexcept(is_nothrow_tag_invocable_v<
+               AsyncRequestCPO,
+               Executor,
+               detail::ServerMultiArgRequest<RPC, Request, Responder>,
+               Service&, grpc::ServerContext&, Request&, Responder&>)
+          -> tag_invoke_result_t<
+              AsyncRequestCPO,
+              Executor,
+              detail::ServerMultiArgRequest<RPC, Request, Responder>,
+              Service&, grpc::ServerContext&, Request&, Responder&> {
+    return unifex::tag_invoke(*this, (Executor &&) executor, rpc, service,
+                              server_context, request, responder);
+  }
+} AsyncRequest{};
+
 
 }  // namespace agrpc
 

@@ -14,14 +14,16 @@ One glance:
 ```c++
 while (true) {
   grpc::ServerContext server_context;
-  grpc::ServerAsyncResponseWriter<helloworld::HelloReply> writer{&server_context};
-  auto [request, request_ok] = co_await agrpc::GrpcContext::RequestSender(
-    &helloworld::Greeter::AsyncService::RequestSayHello, grpc_context,
-    service, server_context, writer);
-
+  helloworld::HelloRequest request;
+  grpc::ServerAsyncResponseWriter<helloworld::HelloReply> writer{
+      &server_context};
+  bool request_ok = co_await agrpc::AsyncRequest(
+      grpc_context.get_scheduler(),
+      &helloworld::Greeter::AsyncService::RequestSayHello,
+      service, server_context, request, writer);
   if (!request_ok)
     co_return;
-  }
+}
 ```
 
 ## Goal

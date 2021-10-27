@@ -17,6 +17,7 @@
 
 #include <atomic>
 #include <memory>
+#include <functional>
 
 #include <grpcpp/alarm.h>
 #include <grpcpp/completion_queue.h>
@@ -42,9 +43,9 @@ struct GrpcCompletionQueueEvent {
 
 class GrpcContext {
  public:
-  template <typename RPC, typename Service, typename Request,
-            typename Responder>
-  class RequestSender;
+  class Scheduler;
+
+  class AsyncRPCSender;
 
   GrpcContext(std::unique_ptr<grpc::ServerCompletionQueue> completion_queue);
 
@@ -52,6 +53,10 @@ class GrpcContext {
 
   template <typename StopToken>
   void Run(StopToken stopToken);
+
+  Scheduler get_scheduler() noexcept;
+
+  grpc::ServerCompletionQueue* get_completion_queue() noexcept;
 
  private:
   struct OperationBase {
@@ -130,21 +135,18 @@ void GrpcContext::Run(StopToken stop_token) {
   RunImpl(stop_op.should_stop_);
 }
 
-template <typename RPC, typename Service, typename Request, typename Responder>
-class GrpcContext::RequestSender {
+class GrpcContext::AsyncRPCSender {
+  using AsyncRPC = std::function<void(GrpcContext&, void*)>;
+
   template <typename Receiver>
   class Operation : private OperationBase {
     friend GrpcContext;
 
    public:
     template <typename Receiver2>
-    explicit Operation(const RequestSender& sender, Receiver2&& r)
-        : rpc_(sender.rpc_),
-          context_(sender.context_),
-          service_(sender.service_),
-          server_context_(sender.server_context_),
-          request_(sender.request_),
-          responder_(sender.responder_),
+    explicit Operation(const AsyncRPCSender& sender, Receiver2&& r)
+        : context_(sender.context_),
+          rpc_(sender.rpc_),
           receiver_((Receiver2 &&) r) {}
 
     void start() noexcept {
@@ -166,9 +168,7 @@ class GrpcContext::RequestSender {
       AGRPC_CHECK(context_.IsRunningOnThisThread());
       static_cast<OperationBase*>(this)->execute_ =
           &Operation::OnRequestComplete;
-      (service_.*rpc_)(&server_context_, &request_, &responder_,
-                       context_.completion_queue_.get(),
-                       context_.completion_queue_.get(), this);
+      rpc_(context_, this);
     }
 
     static void OnRequestComplete(OperationBase* op) noexcept {
@@ -186,12 +186,8 @@ class GrpcContext::RequestSender {
       }
     }
 
-    detail::ServerMultiArgRequest<RPC, Request, Responder> rpc_;
     GrpcContext& context_;
-    Service& service_;
-    grpc::ServerContext& server_context_;
-    Request& request_;
-    Responder& responder_;
+    AsyncRPC rpc_;
     Receiver receiver_;
   };
 
@@ -208,17 +204,8 @@ class GrpcContext::RequestSender {
 
   static constexpr bool sends_done = true;
 
-  explicit RequestSender(
-      detail::ServerMultiArgRequest<RPC, Request, Responder> rpc,
-      GrpcContext& context, Service& service,
-      grpc::ServerContext& server_context, Request& request,
-      Responder& responder) noexcept
-      : rpc_(rpc),
-        context_(context),
-        service_(service),
-        server_context_(server_context),
-        request_(request),
-        responder_(responder) {}
+  explicit AsyncRPCSender(GrpcContext& context, AsyncRPC rpc) noexcept
+      : context_(context), rpc_(rpc) {}
 
   template <typename Receiver>
   Operation<unifex::remove_cvref_t<Receiver>> connect(Receiver&& r) && {
@@ -226,13 +213,54 @@ class GrpcContext::RequestSender {
   }
 
  private:
-  detail::ServerMultiArgRequest<RPC, Request, Responder> rpc_;
   GrpcContext& context_;
-  Service& service_;
-  grpc::ServerContext& server_context_;
-  Request& request_;
-  Responder& responder_;
+  AsyncRPC rpc_;
 };
+
+class GrpcContext::Scheduler {
+ public:
+  Scheduler(const Scheduler&) noexcept = default;
+  Scheduler& operator=(const Scheduler&) = default;
+  ~Scheduler() = default;
+
+ private:
+  friend GrpcContext;
+
+  template <typename RPC, typename Service, typename Request,
+            typename Responder>
+  friend GrpcContext::AsyncRPCSender tag_invoke(
+      tag_t<AsyncRequest>, Scheduler s,
+      detail::ServerMultiArgRequest<RPC, Request, Responder> rpc,
+      Service& service, grpc::ServerContext& server_context, Request& request,
+      Responder& responder);
+
+  explicit Scheduler(GrpcContext& context) noexcept : context_(&context) {}
+
+  GrpcContext* context_;
+};
+
+template <typename RPC, typename Service, typename Request, typename Responder>
+GrpcContext::AsyncRPCSender tag_invoke(
+    tag_t<AsyncRequest>, GrpcContext::Scheduler s,
+    detail::ServerMultiArgRequest<RPC, Request, Responder> rpc,
+    Service& service, grpc::ServerContext& server_context, Request& request,
+    Responder& responder) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&, rpc](GrpcContext& context, void* tag) {
+        (service.*rpc)(&server_context, &request, &responder,
+                       context.get_completion_queue(),
+                       context.get_completion_queue(), tag);
+      });
+}
+
+inline GrpcContext::Scheduler GrpcContext::get_scheduler() noexcept {
+  return Scheduler{*this};
+}
+
+inline grpc::ServerCompletionQueue*
+GrpcContext::get_completion_queue() noexcept {
+  return completion_queue_.get();
+}
 
 }  // namespace agrpc
 

@@ -40,9 +40,9 @@ int main(int argc, char** argv) {
           helloworld::HelloRequest request;
           grpc::ServerAsyncResponseWriter<helloworld::HelloReply> writer{
               &server_context};
-          AGRPC_LOG_INFO("before co_await");
-          bool request_ok = co_await agrpc::GrpcContext::RequestSender(
-              &helloworld::Greeter::AsyncService::RequestSayHello, grpc_context,
+          bool request_ok = co_await agrpc::AsyncRequest(
+              grpc_context.get_scheduler(),
+              &helloworld::Greeter::AsyncService::RequestSayHello,
               service, server_context, request, writer);
           AGRPC_LOG_INFO("request: {}", request.name());
           if (!request_ok)
@@ -50,7 +50,6 @@ int main(int argc, char** argv) {
         }
       }(),
       [&]() -> unifex::task<void> {
-        AGRPC_LOG_INFO("before run");
         grpc_context.Run(stop_source.get_token());
         co_return;
       }()));
