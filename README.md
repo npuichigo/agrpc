@@ -11,6 +11,65 @@ cmake --build .
 
 ## Work in progress
 One glance:
+<table>
+<tr>
+<td> native async grpc </td> <td> agrpc </td>
+</tr>
+<tr>
+<td>
+
+```c++
+class CallData {
+ public:
+  CallData(Greeter::AsyncService* service,
+           ServerCompletionQueue* cq)
+      : service_(service), cq_(cq), responder_(&ctx_),
+        status_(CREATE) {
+    Proceed();
+  }
+
+  void Proceed() {
+    if (status_ == CREATE) {
+      status_ = PROCESS;
+      service_->RequestSayHello(&ctx_, &request_,
+                                &responder_,
+                                cq_, cq_, this);
+    } else if (status_ == PROCESS) {
+      new CallData(service_, cq_);
+  
+      std::string prefix("Hello ");
+      reply_.set_message(prefix + request_.name());
+
+      status_ = FINISH;
+      responder_.Finish(reply_, Status::OK, this);
+    } else {
+      GPR_ASSERT(status_ == FINISH);
+      delete this;
+    }
+  }
+
+ private:
+  // ...
+  enum CallStatus { CREATE, PROCESS, FINISH };
+  CallStatus status_;  // The current serving state.
+};
+
+void HandleRpcs() {
+  // Spawn a new CallData instance to serve new clients.
+  new CallData(&service_, cq_.get());
+  void* tag;  // uniquely identifies a request.
+  bool ok;
+  while (true) {
+    GPR_ASSERT(cq_->Next(&tag, &ok));
+    GPR_ASSERT(ok);
+    static_cast<CallData*>(tag)->Proceed();
+  }
+}
+```
+
+</td>
+<td>
+    
 ```c++
 while (true) {
   grpc::ServerContext server_context;
@@ -29,6 +88,9 @@ while (true) {
                               response, grpc::Status::OK);
 }
 ```
+</td>
+</tr>
+</table>
 
 ## Goal
 Maybe somethiing like C# interface.
