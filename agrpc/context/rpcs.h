@@ -54,6 +54,28 @@ inline const struct AsyncRequestCPO {
   }
 } AsyncRequest{};
 
+inline const struct AsyncFinishCPO {
+  template <typename Executor, typename Response>
+  auto operator()(Executor&& executor,
+                  grpc::ServerAsyncResponseWriter<Response>& writer,
+                  const Response& response,
+                  const grpc::Status& status) const
+      noexcept(is_nothrow_tag_invocable_v<
+               AsyncFinishCPO,
+               Executor,
+               grpc::ServerAsyncResponseWriter<Response>&,
+               const Response&,
+               const grpc::Status&>)
+          -> tag_invoke_result_t<
+              AsyncFinishCPO,
+              Executor,
+              grpc::ServerAsyncResponseWriter<Response>&,
+              const Response&,
+              const grpc::Status&> {
+    return unifex::tag_invoke(*this, (Executor &&) executor, writer, response,
+                              status);
+  }
+} AsyncFinish{};
 
 }  // namespace agrpc
 

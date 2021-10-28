@@ -234,6 +234,12 @@ class GrpcContext::Scheduler {
       Service& service, grpc::ServerContext& server_context, Request& request,
       Responder& responder);
 
+  template <typename Response>
+  friend GrpcContext::AsyncRPCSender tag_invoke(
+      tag_t<AsyncFinish>, Scheduler s,
+      grpc::ServerAsyncResponseWriter<Response>& writer,
+      const Response& response, const grpc::Status& status);
+
   explicit Scheduler(GrpcContext& context) noexcept : context_(&context) {}
 
   GrpcContext* context_;
@@ -247,9 +253,19 @@ GrpcContext::AsyncRPCSender tag_invoke(
     Responder& responder) {
   return GrpcContext::AsyncRPCSender(
       *s.context_, [&, rpc](GrpcContext& context, void* tag) {
-        (service.*rpc)(&server_context, &request, &responder,
-                       context.get_completion_queue(),
-                       context.get_completion_queue(), tag);
+        auto* cq = context.get_completion_queue();
+        (service.*rpc)(&server_context, &request, &responder, cq, cq, tag);
+      });
+}
+
+template <typename Response>
+GrpcContext::AsyncRPCSender tag_invoke(
+    tag_t<AsyncFinish>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncResponseWriter<Response>& writer,
+    const Response& response, const grpc::Status& status) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        writer.Finish(response, status, tag);
       });
 }
 

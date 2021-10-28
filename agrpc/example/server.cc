@@ -44,9 +44,13 @@ int main(int argc, char** argv) {
               grpc_context.get_scheduler(),
               &helloworld::Greeter::AsyncService::RequestSayHello,
               service, server_context, request, writer);
-          AGRPC_LOG_INFO("request: {}", request.name());
-          if (!request_ok)
+          if (!request_ok) {
             co_return;
+          }
+          helloworld::HelloReply response;
+          response.set_message("Hello " + request.name());
+          co_await agrpc::AsyncFinish(grpc_context.get_scheduler(), writer,
+                                      response, grpc::Status::OK);
         }
       }(),
       [&]() -> unifex::task<void> {
