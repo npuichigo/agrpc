@@ -6,6 +6,7 @@ Build an elegant GRPC async interface with C++20 coroutine and libunifex (target
 ```bash
 mkdir build && cd build
 conan install ..
+cmake -DCMAKE_CXX_FLAGS:STRING=-fcoroutines ..
 cmake --build .
 ```
 
