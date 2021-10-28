@@ -23,6 +23,10 @@ while (true) {
       service, server_context, request, writer);
   if (!request_ok)
     co_return;
+  helloworld::HelloReply response;
+  response.set_message("Hello " + request.name());
+  co_await agrpc::AsyncFinish(grpc_context.get_scheduler(), writer,
+                              response, grpc::Status::OK);
 }
 ```
 
