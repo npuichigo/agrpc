@@ -55,6 +55,7 @@ inline const struct AsyncRequestCPO {
 } AsyncRequest{};
 
 inline const struct AsyncFinishCPO {
+  // Server
   template <typename Executor, typename Response>
   auto operator()(Executor&& executor,
                   grpc::ServerAsyncResponseWriter<Response>& writer,
@@ -73,6 +74,28 @@ inline const struct AsyncFinishCPO {
               const Response&,
               const grpc::Status&> {
     return unifex::tag_invoke(*this, (Executor &&) executor, writer, response,
+                              status);
+  }
+
+  // Client
+  template <typename Executor, typename Response>
+  auto operator()(Executor&& executor,
+                  grpc::ClientAsyncResponseReader<Response>& reader,
+                  Response& response,
+                  grpc::Status& status) const
+      noexcept(is_nothrow_tag_invocable_v<
+               AsyncFinishCPO,
+               Executor,
+               grpc::ClientAsyncResponseReader<Response>&,
+               Response&,
+               const grpc::Status&>)
+          -> tag_invoke_result_t<
+              AsyncFinishCPO,
+              Executor,
+              grpc::ClientAsyncResponseReader<Response>&,
+              Response&,
+              grpc::Status&> {
+    return unifex::tag_invoke(*this, (Executor &&) executor, reader, response,
                               status);
   }
 } AsyncFinish{};

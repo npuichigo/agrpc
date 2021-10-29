@@ -28,7 +28,7 @@ static thread_local GrpcContext* current_thread_context;
 static constexpr void* remote_queue_event_user_data = nullptr;
 
 GrpcContext::GrpcContext(
-    std::unique_ptr<grpc::ServerCompletionQueue> completion_queue)
+    std::unique_ptr<grpc::CompletionQueue> completion_queue)
     : completion_queue_(std::move(completion_queue)) {}
 
 GrpcContext::~GrpcContext() {}

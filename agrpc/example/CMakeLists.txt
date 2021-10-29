@@ -18,6 +18,10 @@ agrpc_cc_binary(
   SRCS
     "client.cc"
   DEPS
+    agrpc::base::logging
+    agrpc::context::grpc_context
     agrpc::proto::hello_world
+    gflags
     gRPC::grpc++
+    unifex
 )

@@ -47,16 +47,19 @@ class GrpcContext {
 
   class AsyncRPCSender;
 
-  GrpcContext(std::unique_ptr<grpc::ServerCompletionQueue> completion_queue);
+  GrpcContext(std::unique_ptr<grpc::CompletionQueue> completion_queue);
 
   ~GrpcContext();
 
   template <typename StopToken>
   void Run(StopToken stopToken);
 
+  void ShutDown();
+
   Scheduler get_scheduler() noexcept;
 
-  grpc::ServerCompletionQueue* get_completion_queue() noexcept;
+  grpc::CompletionQueue* get_completion_queue() noexcept;
+  grpc::ServerCompletionQueue* get_server_completion_queue() noexcept;
 
  private:
   struct OperationBase {
@@ -118,13 +121,23 @@ class GrpcContext {
 
   grpc::Alarm work_alarm_;
   detail::GrpcCompletionQueueEvent event_;
-  std::unique_ptr<grpc::ServerCompletionQueue> completion_queue_;
+  std::unique_ptr<grpc::CompletionQueue> completion_queue_;
 
   bool remote_queue_read_submitted_{false};
 
   OperationQueue local_queue_;
   AtomicOperationQueue remote_queue_{false};
 };
+
+inline grpc::CompletionQueue*
+GrpcContext::get_completion_queue() noexcept {
+  return completion_queue_.get();
+}
+
+inline grpc::ServerCompletionQueue*
+GrpcContext::get_server_completion_queue() noexcept {
+  return static_cast<grpc::ServerCompletionQueue*>(completion_queue_.get());
+}
 
 template <typename StopToken>
 void GrpcContext::Run(StopToken stop_token) {
@@ -133,6 +146,10 @@ void GrpcContext::Run(StopToken stop_token) {
   typename StopToken::template callback_type<decltype(on_stop_requested)>
       stop_callback{std::move(stop_token), std::move(on_stop_requested)};
   RunImpl(stop_op.should_stop_);
+}
+
+inline void GrpcContext::ShutDown() {
+  completion_queue_->Shutdown();
 }
 
 class GrpcContext::AsyncRPCSender {
@@ -240,10 +257,20 @@ class GrpcContext::Scheduler {
       grpc::ServerAsyncResponseWriter<Response>& writer,
       const Response& response, const grpc::Status& status);
 
+  template <typename Response>
+  friend GrpcContext::AsyncRPCSender tag_invoke(
+      tag_t<AsyncFinish>, Scheduler s,
+      grpc::ClientAsyncResponseReader<Response>& reader,
+      Response& response, grpc::Status& status);
+
   explicit Scheduler(GrpcContext& context) noexcept : context_(&context) {}
 
   GrpcContext* context_;
 };
+
+inline GrpcContext::Scheduler GrpcContext::get_scheduler() noexcept {
+  return Scheduler{*this};
+}
 
 template <typename RPC, typename Service, typename Request, typename Responder>
 GrpcContext::AsyncRPCSender tag_invoke(
@@ -253,7 +280,7 @@ GrpcContext::AsyncRPCSender tag_invoke(
     Responder& responder) {
   return GrpcContext::AsyncRPCSender(
       *s.context_, [&, rpc](GrpcContext& context, void* tag) {
-        auto* cq = context.get_completion_queue();
+        auto* cq = context.get_server_completion_queue();
         (service.*rpc)(&server_context, &request, &responder, cq, cq, tag);
       });
 }
@@ -269,13 +296,15 @@ GrpcContext::AsyncRPCSender tag_invoke(
       });
 }
 
-inline GrpcContext::Scheduler GrpcContext::get_scheduler() noexcept {
-  return Scheduler{*this};
-}
-
-inline grpc::ServerCompletionQueue*
-GrpcContext::get_completion_queue() noexcept {
-  return completion_queue_.get();
+template <typename Response>
+GrpcContext::AsyncRPCSender tag_invoke(
+    tag_t<AsyncFinish>, GrpcContext::Scheduler s,
+    grpc::ClientAsyncResponseReader<Response>& reader,
+    Response& response, grpc::Status& status) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        reader.Finish(&response, &status, tag);
+      });
 }
 
 }  // namespace agrpc

@@ -12,7 +12,7 @@
 #include "agrpc/context/grpc_context.h"
 #include "agrpc/proto/helloworld.grpc.pb.h"
 
-DEFINE_int32(port, 50051, "Grpc port to listen on for gRPC API");
+DEFINE_int32(port, 50051, "Grpc port to listen on");
 
 int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, false);
