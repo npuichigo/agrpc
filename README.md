@@ -103,3 +103,6 @@ public override async Task RouteChat(Grpc.Core.IAsyncStreamReader<RouteNote> req
     }
 }
 ```
+
+## Reference
+- [asio-grpc: Asynchronous gRPC with Boost.Asio executors](https://github.com/Tradias/asio-grpc)
