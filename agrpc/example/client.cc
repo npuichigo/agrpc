@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
         helloworld::HelloReply response;
         grpc::Status status;
         bool ok = co_await agrpc::AsyncFinish(grpc_context.get_scheduler(),
-                                                 *reader, response, status);
+                                              *reader, response, status);
         AGRPC_CHECK(ok);
         AGRPC_LOG_INFO("Received: {}", response.message());
         grpc_context.ShutDown();
