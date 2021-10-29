@@ -35,14 +35,14 @@ jobs:
       
     - name: Install Dependant Libraries
       run: |
-        conan profile new default --detect
+        CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }} conan profile new default --detect
         conan profile update settings.compiler=${{ matrix.config.compiler }} default
         conan profile update settings.compiler.version=${{ matrix.config.compiler_version }} default
         conan profile update settings.compiler.libcxx=${{ matrix.config.compiler_libcxx }} default
         conan install -if ${{github.workspace}}/build ${{github.workspace}}
 
     - name: Configure CMake
-      run: CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }}  cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{ matrix.config.cmake_args }}
+      run: CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }} cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{ matrix.config.cmake_args }}
 
     - name: Build
       # Build your program with the given configuration
