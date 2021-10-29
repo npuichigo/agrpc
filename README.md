@@ -22,13 +22,6 @@ One glance:
 ```c++
 class CallData {
  public:
-  CallData(Greeter::AsyncService* service,
-           ServerCompletionQueue* cq)
-      : service_(service), cq_(cq), responder_(&ctx_),
-        status_(CREATE) {
-    Proceed();
-  }
-
   void Proceed() {
     if (status_ == CREATE) {
       status_ = PROCESS;
@@ -52,11 +45,10 @@ class CallData {
  private:
   // ...
   enum CallStatus { CREATE, PROCESS, FINISH };
-  CallStatus status_;  // The current serving state.
+  CallStatus status_{CREATE};  // The current serving state.
 };
 
 void HandleRpcs() {
-  // Spawn a new CallData instance to serve new clients.
   new CallData(&service_, cq_.get());
   void* tag;  // uniquely identifies a request.
   bool ok;
