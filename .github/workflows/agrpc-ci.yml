@@ -40,6 +40,7 @@ jobs:
       
     - name: Install Dependant Libraries
       run: |
+        conan profile new default --detect
         conan profile update settings.compiler=${{ matrix.config.compiler }} default
         conan profile update settings.compiler.version=${{ matrix.config.compiler_version }} default
         conan profile update settings.compiler.libcxx=${{ matrix.config.compiler_libcxx }} default
