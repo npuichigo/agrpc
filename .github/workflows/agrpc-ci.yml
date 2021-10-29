@@ -21,7 +21,7 @@ jobs:
             compiler: "gcc",
             compiler_version: "10",
             compiler_libcxx: "libstdc++11",
-            cc: "gcc-10", cxx: "g++-10",
+            cc: "/usr/bin/gcc-10", cxx: "/usr/bin/g++-10",
             cmake_args: "-D CMAKE_CXX_FLAGS:STRING=-fcoroutines"
           }
 
