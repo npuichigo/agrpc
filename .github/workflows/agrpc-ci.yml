@@ -1,0 +1,45 @@
+name: crpc CI
+
+# Trigger on pushes to all branches and for all pull-requests
+on: [push, pull_request]
+
+env:
+  BUILD_TYPE: Release
+  
+jobs:
+  build:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - {
+            name: "Linux GCC 10", artifact: "Linux.tar.xz",
+            os: ubuntu-latest,
+            build_type: RelWithDebInfo,
+            cc: "gcc-10", cxx: "g++-10",
+            cmake_args: "-D CMAKE_CXX_FLAGS:STRING=-fcoroutines"
+          }
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    
+    - name: Get Conan
+      uses: turtlebrowser/get-conan@v1.0
+      
+    - name: Install Dependant Libraries
+      run: conan install -if ${{github.workspace}}/build ${{github.workspace}}
+
+    - name: Configure CMake
+      run: |
+        set(ENV{CC} ${{ matrix.config.cc }})
+        set(ENV{CXX} ${{ matrix.config.cxx }})
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{ matrix.config.cmake_args }}
+
+    - name: Build
+      # Build your program with the given configuration
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      
