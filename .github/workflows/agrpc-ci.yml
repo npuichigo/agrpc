@@ -19,6 +19,7 @@ jobs:
             os: ubuntu-latest,
             build_type: RelWithDebInfo,
             cc: "gcc-10", cxx: "g++-10",
+            compiler_version: "10",
             cmake_args: "-D CMAKE_CXX_FLAGS:STRING=-fcoroutines"
           }
 
@@ -31,7 +32,7 @@ jobs:
       uses: turtlebrowser/get-conan@v1.0
       
     - name: Install Dependant Libraries
-      run: conan install -if ${{github.workspace}}/build ${{github.workspace}}
+      run: conan install -s compiler.version=${{ matrix.config.compiler_version }} -if ${{github.workspace}}/build ${{github.workspace}}
 
     - name: Configure CMake
       run: CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }} cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{ matrix.config.cmake_args }}
