@@ -33,11 +33,6 @@ jobs:
     - name: Get Conan
       uses: turtlebrowser/get-conan@v1.0
       
-    - name: Export CC and CXX
-      run: |
-        export CC=${{ matrix.config.cc }}
-        export CXX=${{ matrix.config.cxx }}
-      
     - name: Install Dependant Libraries
       run: |
         conan profile new default --detect
@@ -47,7 +42,7 @@ jobs:
         conan install -if ${{github.workspace}}/build ${{github.workspace}}
 
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{ matrix.config.cmake_args }}
+      run: CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }}  cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{ matrix.config.cmake_args }}
 
     - name: Build
       # Build your program with the given configuration
