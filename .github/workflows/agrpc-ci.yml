@@ -34,10 +34,7 @@ jobs:
       run: conan install -if ${{github.workspace}}/build ${{github.workspace}}
 
     - name: Configure CMake
-      run: |
-        set(ENV{CC} ${{ matrix.config.cc }})
-        set(ENV{CXX} ${{ matrix.config.cxx }})
-        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{ matrix.config.cmake_args }}
+      run: CC=${{ matrix.config.cc }} CXX=${{ matrix.config.cxx }} cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ${{ matrix.config.cmake_args }}
 
     - name: Build
       # Build your program with the given configuration
