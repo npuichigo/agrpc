@@ -86,7 +86,7 @@ while (true) {
 </table>
 
 ## Goal
-Maybe somethiing like C# interface.
+Maybe something like C# interface.
 ```c#
 public override async Task RouteChat(Grpc.Core.IAsyncStreamReader<RouteNote> requestStream,
     Grpc.Core.IServerStreamWriter<RouteNote> responseStream,
