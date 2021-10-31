@@ -14,6 +14,14 @@
 
 DEFINE_int32(port, 50051, "Grpc port to listen on");
 
+unifex::task<helloworld::HelloReply> HandleRequest(
+    const helloworld::HelloRequest& request,
+    const grpc::ServerContext& context) {
+  helloworld::HelloReply response;
+  response.set_message("Hello " + request.name());
+  co_return response;
+}
+
 int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, false);
   google::InitGoogleLogging(argv[0]);
@@ -47,8 +55,7 @@ int main(int argc, char** argv) {
           if (!request_ok) {
             co_return;
           }
-          helloworld::HelloReply response;
-          response.set_message("Hello " + request.name());
+          auto response = co_await HandleRequest(request, server_context);
           co_await agrpc::AsyncFinish(grpc_context.get_scheduler(), writer,
                                       response, grpc::Status::OK);
         }
