@@ -85,6 +85,22 @@ while (true) {
 </tr>
 </table>
 
+## Benchmark
+
+### 2 CPU server
+
+| name                        |   req/s |   avg. latency |        90 % in |        95 % in |        99 % in | avg. cpu |   avg. memory |
+|-----------------------------|--------:|---------------:|---------------:|---------------:|---------------:|---------:|--------------:|
+| rust_tonic_mt               |   77236 |       11.97 ms |       30.99 ms |       44.78 ms |       68.00 ms |  191.33% |     17.42 MiB |
+| cpp_agrpc                   |   72084 |       13.50 ms |       20.83 ms |       23.73 ms |       31.08 ms |  202.99% |      86.8 MiB |
+| cpp_grpc_mt                 |   68099 |       14.18 ms |       34.95 ms |       39.29 ms |       45.88 ms |  203.08% |     61.64 MiB |
+| dotnet_grpc                 |   63479 |       13.98 ms |       20.35 ms |       26.62 ms |       61.63 ms |  201.58% |    175.97 MiB |
+| rust_tonic_st               |   61962 |       15.83 ms |       19.73 ms |       21.05 ms |       24.13 ms |  102.46% |     16.32 MiB |
+| cpp_grpc_st                 |   50593 |       19.47 ms |       23.59 ms |       25.26 ms |       29.66 ms |  102.15% |     19.53 MiB |
+| cpp_grpc_callback           |   29612 |       32.49 ms |       74.33 ms |       78.51 ms |       85.74 ms |  202.37% |    444.44 MiB |
+| go_grpc                     |   12050 |       80.52 ms |      188.05 ms |      194.19 ms |      286.45 ms |  200.78% |     45.11 MiB |
+
+
 ## Goal
 Maybe something like C# interface.
 ```c#
