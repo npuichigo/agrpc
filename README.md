@@ -87,6 +87,19 @@ while (true) {
 
 ## Benchmark
 
+### 1 CPU server
+
+| name                        |   req/s |   avg. latency |        90 % in |        95 % in |        99 % in | avg. cpu |   avg. memory |
+|-----------------------------|--------:|---------------:|---------------:|---------------:|---------------:|---------:|--------------:|
+| cpp_agrpc                   |   35385 |       26.74 ms |       39.48 ms |       49.60 ms |       64.11 ms |   92.43% |     28.78 MiB |
+| cpp_grpc_st                 |   35364 |       26.03 ms |       48.25 ms |       58.39 ms |       72.63 ms |   80.95% |     21.57 MiB |
+| cpp_grpc_mt                 |   35068 |       26.23 ms |       48.16 ms |       58.60 ms |       72.72 ms |   80.29% |     18.05 MiB |
+| rust_tonic_st               |   33407 |       25.96 ms |       54.54 ms |       60.15 ms |       68.41 ms |   66.22% |     15.34 MiB |
+| dotnet_grpc                 |   32125 |       26.78 ms |       53.29 ms |       66.82 ms |       81.76 ms |    95.1% |     94.31 MiB |
+| rust_tonic_mt               |   31428 |       29.06 ms |       90.03 ms |       97.46 ms |      106.46 ms |   69.87% |     13.52 MiB |
+| cpp_grpc_callback           |   12283 |       80.54 ms |      103.30 ms |      107.25 ms |      178.37 ms |  100.27% |    406.88 MiB |
+| go_grpc                     |    5600 |      176.37 ms |      306.34 ms |      397.40 ms |      598.96 ms |  100.41% |     44.02 MiB |
+
 ### 2 CPU server
 
 | name                        |   req/s |   avg. latency |        90 % in |        95 % in |        99 % in | avg. cpu |   avg. memory |
