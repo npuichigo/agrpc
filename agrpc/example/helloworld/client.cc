@@ -24,7 +24,7 @@
 
 #include "agrpc/base/logging.h"
 #include "agrpc/context/grpc_context.h"
-#include "agrpc/proto/helloworld.grpc.pb.h"
+#include "agrpc/example/proto/helloworld.grpc.pb.h"
 
 DEFINE_int32(port, 50051, "Grpc port to connect");
 
