@@ -45,6 +45,7 @@ class GrpcContext {
  public:
   class Scheduler;
 
+  template <typename AsyncRPC>
   class AsyncRPCSender;
 
   GrpcContext(std::unique_ptr<grpc::CompletionQueue> completion_queue);
@@ -152,8 +153,8 @@ inline void GrpcContext::ShutDown() {
   completion_queue_->Shutdown();
 }
 
+template <typename AsyncRPC>
 class GrpcContext::AsyncRPCSender {
-  using AsyncRPC = std::function<void(GrpcContext&, void*)>;
 
   template <typename Receiver>
   class Operation : private OperationBase {
@@ -245,20 +246,20 @@ class GrpcContext::Scheduler {
 
   template <typename RPC, typename Service, typename Request,
             typename Responder>
-  friend GrpcContext::AsyncRPCSender tag_invoke(
+  friend auto tag_invoke(
       tag_t<AsyncRequest>, Scheduler s,
       detail::ServerMultiArgRequest<RPC, Request, Responder> rpc,
       Service& service, grpc::ServerContext& server_context, Request& request,
       Responder& responder);
 
   template <typename Response>
-  friend GrpcContext::AsyncRPCSender tag_invoke(
+  friend auto tag_invoke(
       tag_t<AsyncFinish>, Scheduler s,
       grpc::ServerAsyncResponseWriter<Response>& writer,
       const Response& response, const grpc::Status& status);
 
   template <typename Response>
-  friend GrpcContext::AsyncRPCSender tag_invoke(
+  friend auto tag_invoke(
       tag_t<AsyncFinish>, Scheduler s,
       grpc::ClientAsyncResponseReader<Response>& reader,
       Response& response, grpc::Status& status);
@@ -273,7 +274,7 @@ inline GrpcContext::Scheduler GrpcContext::get_scheduler() noexcept {
 }
 
 template <typename RPC, typename Service, typename Request, typename Responder>
-GrpcContext::AsyncRPCSender tag_invoke(
+auto tag_invoke(
     tag_t<AsyncRequest>, GrpcContext::Scheduler s,
     detail::ServerMultiArgRequest<RPC, Request, Responder> rpc,
     Service& service, grpc::ServerContext& server_context, Request& request,
@@ -286,7 +287,7 @@ GrpcContext::AsyncRPCSender tag_invoke(
 }
 
 template <typename Response>
-GrpcContext::AsyncRPCSender tag_invoke(
+auto tag_invoke(
     tag_t<AsyncFinish>, GrpcContext::Scheduler s,
     grpc::ServerAsyncResponseWriter<Response>& writer,
     const Response& response, const grpc::Status& status) {
@@ -297,7 +298,7 @@ GrpcContext::AsyncRPCSender tag_invoke(
 }
 
 template <typename Response>
-GrpcContext::AsyncRPCSender tag_invoke(
+auto tag_invoke(
     tag_t<AsyncFinish>, GrpcContext::Scheduler s,
     grpc::ClientAsyncResponseReader<Response>& reader,
     Response& response, grpc::Status& status) {
