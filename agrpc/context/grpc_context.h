@@ -244,6 +244,9 @@ class GrpcContext::Scheduler {
  private:
   friend GrpcContext;
 
+  explicit Scheduler(GrpcContext& context) noexcept : context_(&context) {}
+
+  // Server AsyncRequest
   template <typename RPC, typename Service, typename Request,
             typename Responder>
   friend auto tag_invoke(
@@ -252,6 +255,40 @@ class GrpcContext::Scheduler {
       Service& service, grpc::ServerContext& server_context, Request& request,
       Responder& responder);
 
+  template <typename RPC, typename Service, typename Responder>
+  friend auto tag_invoke(
+      tag_t<AsyncRequest>, Scheduler s,
+      detail::ServerSingleArgRequest<RPC, Responder> rpc,
+      Service& service, grpc::ServerContext& server_context,
+      Responder& responder);
+
+  // Server AsyncRead
+  template <typename Response, typename Request>
+  friend auto tag_invoke(
+      tag_t<AsyncRead>, Scheduler s,
+      grpc::ServerAsyncReader<Response, Request>& reader,
+      Request& request);
+
+  template <typename Response, typename Request>
+  friend auto tag_invoke(
+      tag_t<AsyncRead>, Scheduler s,
+      grpc::ServerAsyncReaderWriter<Response, Request>& reader_writer,
+      Request& request);
+
+  // Server AsyncWrite
+  template <typename Response>
+  friend auto tag_invoke(
+      tag_t<AsyncWrite>, Scheduler s,
+      grpc::ServerAsyncWriter<Response>& writer,
+      const Response& response);
+
+  template <typename Response, typename Request>
+  friend auto tag_invoke(
+      tag_t<AsyncWrite>, Scheduler s,
+      grpc::ServerAsyncReaderWriter<Response, Request>& reader_writer,
+      const Response& response);
+
+  // Server AsyncFinish
   template <typename Response>
   friend auto tag_invoke(
       tag_t<AsyncFinish>, Scheduler s,
@@ -261,10 +298,61 @@ class GrpcContext::Scheduler {
   template <typename Response>
   friend auto tag_invoke(
       tag_t<AsyncFinish>, Scheduler s,
+      grpc::ServerAsyncWriter<Response>& writer,
+      const grpc::Status& status);
+
+  template <typename Response, typename Request>
+  friend auto tag_invoke(
+      tag_t<AsyncFinish>, Scheduler s,
+      grpc::ServerAsyncReader<Response, Request>& reader,
+      const Response& response, const grpc::Status& status);
+
+  template <typename Response, typename Request>
+  friend auto tag_invoke(
+      tag_t<AsyncFinish>, Scheduler s,
+      grpc::ServerAsyncReaderWriter<Response, Request>& reader_writer,
+      const grpc::Status& status);
+
+  // Client AsyncFinish
+  template <typename Response>
+  friend auto tag_invoke(
+      tag_t<AsyncFinish>, Scheduler s,
       grpc::ClientAsyncResponseReader<Response>& reader,
       Response& response, grpc::Status& status);
 
-  explicit Scheduler(GrpcContext& context) noexcept : context_(&context) {}
+  // Server AsyncWriteAndFinish
+  template <typename Response>
+  friend auto tag_invoke(
+      tag_t<AsyncWriteAndFinish>, Scheduler s,
+      grpc::ServerAsyncWriter<Response>& writer,
+      const Response& response, grpc::WriteOptions options,
+      const grpc::Status& status);
+
+  template <typename Response, typename Request>
+  friend auto tag_invoke(
+      tag_t<AsyncWriteAndFinish>, Scheduler s,
+      grpc::ServerAsyncReaderWriter<Response, Request>& reader_writer,
+      const Response& response, grpc::WriteOptions options,
+      const grpc::Status& status);
+
+  // Server AsyncFinishWithError
+  template <typename Response, typename Request>
+  friend auto tag_invoke(
+      tag_t<AsyncFinishWithError>, Scheduler s,
+      grpc::ServerAsyncReader<Response, Request>& reader,
+      const grpc::Status& status);
+
+  template <typename Response>
+  friend auto tag_invoke(
+      tag_t<AsyncFinishWithError>, Scheduler s,
+      grpc::ServerAsyncResponseWriter<Response> writer,
+      const grpc::Status& status);
+
+  // Server AsyncSendInitialMetadata
+  template <typename Responder>
+  friend auto tag_invoke(
+      tag_t<AsyncSendInitialMetadata>, Scheduler s,
+      Responder& responder);
 
   GrpcContext* context_;
 };
@@ -273,6 +361,7 @@ inline GrpcContext::Scheduler GrpcContext::get_scheduler() noexcept {
   return Scheduler{*this};
 }
 
+// Server AsyncRequest
 template <typename RPC, typename Service, typename Request, typename Responder>
 auto tag_invoke(
     tag_t<AsyncRequest>, GrpcContext::Scheduler s,
@@ -286,6 +375,66 @@ auto tag_invoke(
       });
 }
 
+template <typename RPC, typename Service, typename Responder>
+auto tag_invoke(
+    tag_t<AsyncRequest>, GrpcContext::Scheduler s,
+    detail::ServerSingleArgRequest<RPC, Responder> rpc,
+    Service& service, grpc::ServerContext& server_context,
+    Responder& responder) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&, rpc](GrpcContext& context, void* tag) {
+        auto* cq = context.get_server_completion_queue();
+        (service.*rpc)(&server_context, &responder, cq, cq, tag);
+      });
+}
+
+// Server AsyncRead
+template <typename Response, typename Request>
+auto tag_invoke(
+    tag_t<AsyncRead>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncReader<Response, Request>& reader,
+    Request& request) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        reader.Read(&request, tag);
+      });
+}
+
+template <typename Response, typename Request>
+auto tag_invoke(
+    tag_t<AsyncRead>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncReaderWriter<Response, Request>& reader_writer,
+    Request& request) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        reader_writer.Read(&request, tag);
+      });
+}
+
+// Server AsyncWrite
+template <typename Response>
+auto tag_invoke(
+    tag_t<AsyncWrite>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncWriter<Response>& writer,
+    const Response& response) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        writer.Write(response, tag);
+      });
+}
+
+template <typename Response, typename Request>
+auto tag_invoke(
+    tag_t<AsyncWrite>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncReaderWriter<Response, Request>& reader_writer,
+    const Response& response) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        reader_writer.Write(response, tag);
+      });
+}
+
+// Server AsyncFinish
 template <typename Response>
 auto tag_invoke(
     tag_t<AsyncFinish>, GrpcContext::Scheduler s,
@@ -300,11 +449,104 @@ auto tag_invoke(
 template <typename Response>
 auto tag_invoke(
     tag_t<AsyncFinish>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncWriter<Response>& writer,
+    const grpc::Status& status) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        writer.Finish(status, tag);
+      });
+}
+
+template <typename Response, typename Request>
+auto tag_invoke(
+    tag_t<AsyncFinish>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncReader<Response, Request>& reader,
+    const Response& response, const grpc::Status& status) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        reader.Finish(response, status, tag);
+      });
+}
+
+template <typename Response, typename Request>
+auto tag_invoke(
+    tag_t<AsyncFinish>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncReaderWriter<Response, Request>& reader_writer,
+    const grpc::Status& status) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        reader_writer.Finish(status, tag);
+      });
+}
+
+// Client AsyncFinish
+template <typename Response>
+auto tag_invoke(
+    tag_t<AsyncFinish>, GrpcContext::Scheduler s,
     grpc::ClientAsyncResponseReader<Response>& reader,
     Response& response, grpc::Status& status) {
   return GrpcContext::AsyncRPCSender(
       *s.context_, [&](GrpcContext&, void* tag) {
         reader.Finish(&response, &status, tag);
+      });
+}
+
+// Server AsyncWriteAndFinish
+template <typename Response>
+auto tag_invoke(
+    tag_t<AsyncWriteAndFinish>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncWriter<Response>& writer,
+    const Response& response, grpc::WriteOptions options,
+    const grpc::Status& status) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        writer.WriteAndFinish(response, options, status, tag);
+      });
+}
+
+template <typename Response, typename Request>
+auto tag_invoke(
+    tag_t<AsyncWriteAndFinish>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncReaderWriter<Response, Request>& reader_writer,
+    const Response& response, grpc::WriteOptions options,
+    const grpc::Status& status) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        reader_writer.WriteAndFinish(response, options, status, tag);
+      });
+}
+
+// Server AsyncFinishWithError
+template <typename Response, typename Request>
+auto tag_invoke(
+    tag_t<AsyncFinishWithError>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncReader<Response, Request>& reader,
+    const grpc::Status& status) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        reader.FinishWithError(status, tag);
+      });
+}
+
+template <typename Response>
+auto tag_invoke(
+    tag_t<AsyncFinishWithError>, GrpcContext::Scheduler s,
+    grpc::ServerAsyncResponseWriter<Response> writer,
+    const grpc::Status& status) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        writer.FinishWithError(status, tag);
+      });
+}
+
+// Server AsyncSendInitialMetadata
+template <typename Responder>
+auto tag_invoke(
+    tag_t<AsyncSendInitialMetadata>, GrpcContext::Scheduler s,
+    Responder& responder) {
+  return GrpcContext::AsyncRPCSender(
+      *s.context_, [&](GrpcContext&, void* tag) {
+        responder.SendInitialMetadata(tag);
       });
 }
 

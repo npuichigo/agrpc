@@ -27,6 +27,7 @@ endif()
 # Project component configuration
 #-------------------------------------------------------------------------------
 
+option(AGRPC_BUILD_EXAMPLES "Compile agrpc examples" ON)
 option(AGRPC_BUILD_TESTS "Compile agrpc with unit testing" ON)
 option(AGRPC_ENABLE_THREADING "Builds AGRPC with thread library support." ON)
 

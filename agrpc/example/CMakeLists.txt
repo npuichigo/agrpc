@@ -1,3 +1,7 @@
+if(NOT AGRPC_BUILD_EXAMPLES)
+  return()
+endif()
+
 agrpc_cc_binary(
   NAME
     server
