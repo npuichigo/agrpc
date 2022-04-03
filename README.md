@@ -64,18 +64,19 @@ void HandleRpcs() {
 <td>
     
 ```c++
-grpc::ServerContext server_context;
- 
 while (true) {
+  grpc::ServerContext server_context;
   helloworld::HelloRequest request;
   grpc::ServerAsyncResponseWriter<helloworld::HelloReply> writer{
       &server_context};
+ 
   bool request_ok = co_await agrpc::AsyncRequest(
       grpc_context.get_scheduler(),
       &helloworld::Greeter::AsyncService::RequestSayHello,
       service, server_context, request, writer);
   if (!request_ok)
     co_return;
+ 
   helloworld::HelloReply response;
   response.set_message("Hello " + request.name());
   co_await agrpc::AsyncFinish(grpc_context.get_scheduler(), writer,
