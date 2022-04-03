@@ -64,8 +64,9 @@ void HandleRpcs() {
 <td>
     
 ```c++
+grpc::ServerContext server_context;
+ 
 while (true) {
-  grpc::ServerContext server_context;
   helloworld::HelloRequest request;
   grpc::ServerAsyncResponseWriter<helloworld::HelloReply> writer{
       &server_context};
