@@ -64,6 +64,7 @@ void HandleRpcs() {
 <td>
     
 ```c++
+agrpc::GrpcContext grpc_context{builder.AddCompletionQueue()};
 while (true) {
   grpc::ServerContext server_context;
   helloworld::HelloRequest request;
