@@ -28,7 +28,7 @@ namespace {
 template <class T>
 inline T ReadClock(int type) {
   timespec ts;
-  clock_gettime(type, &ts);
+  clock_gettime(static_cast<clockid_t>(type), &ts);
   return T((ts.tv_sec * 1'000'000'000LL + ts.tv_nsec) * 1ns);
 }
 
